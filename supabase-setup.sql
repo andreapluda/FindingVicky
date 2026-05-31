@@ -1,4 +1,5 @@
 -- Run this in Supabase SQL Editor (https://supabase.com/dashboard → SQL Editor)
+-- If you already ran the previous version, run only the DROP + recreate policy section below.
 
 -- 1. Create the pins table
 create table if not exists public.pins (
@@ -18,41 +19,52 @@ create table if not exists public.pins (
 alter table public.pins enable row level security;
 
 -- 3. Anyone can read approved pins
+drop policy if exists "Read approved pins" on public.pins;
 create policy "Read approved pins"
   on public.pins for select
   using (approved = true);
 
 -- 4. Anyone can insert a new (unapproved) pin
+drop policy if exists "Insert pending pin" on public.pins;
 create policy "Insert pending pin"
   on public.pins for insert
   with check (approved = false);
 
--- 5. Service role (admin page uses anon key + password check client-side,
---    but for update/delete we use service role key — see note in README)
---    For simplicity with anon key, allow update/delete from anon too.
---    In production, use a server-side function with service role key.
+-- 5. Only authenticated users (admins) can update/delete
+drop policy if exists "Admin can update pins" on public.pins;
 create policy "Admin can update pins"
   on public.pins for update
-  using (true);
+  using (auth.role() = 'authenticated');
 
+drop policy if exists "Admin can delete pins" on public.pins;
 create policy "Admin can delete pins"
   on public.pins for delete
-  using (true);
+  using (auth.role() = 'authenticated');
+
+-- Also allow authenticated admins to read ALL pins (including pending)
+drop policy if exists "Admin reads all pins" on public.pins;
+create policy "Admin reads all pins"
+  on public.pins for select
+  using (auth.role() = 'authenticated');
 
 -- 6. Create storage bucket for photos
 insert into storage.buckets (id, name, public)
 values ('photos', 'photos', true)
 on conflict do nothing;
 
--- 7. Storage policies: anyone can upload, anyone can read public photos
+-- 7. Storage policies
+drop policy if exists "Anyone can upload photos" on storage.objects;
 create policy "Anyone can upload photos"
   on storage.objects for insert
   with check (bucket_id = 'photos');
 
+drop policy if exists "Photos are publicly readable" on storage.objects;
 create policy "Photos are publicly readable"
   on storage.objects for select
   using (bucket_id = 'photos');
 
+-- Only authenticated admins can delete photos
+drop policy if exists "Admin can delete photos" on storage.objects;
 create policy "Admin can delete photos"
   on storage.objects for delete
-  using (bucket_id = 'photos');
+  using (bucket_id = 'photos' and auth.role() = 'authenticated');

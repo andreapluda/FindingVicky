@@ -14,15 +14,21 @@
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100dvh; }
     header { background: var(--surface); padding: 14px 24px; border-bottom: 1px solid var(--surface2); display: flex; align-items: center; justify-content: space-between; }
     header h1 { font-size: 1.1rem; color: var(--accent); }
-    #pending-count { font-size: 0.85rem; color: var(--text-muted); }
+    #header-right { display: flex; align-items: center; gap: 16px; font-size: 0.85rem; color: var(--text-muted); }
+    #btn-logout { background: none; border: 1px solid var(--surface2); color: var(--text-muted); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+    #btn-logout:hover { border-color: var(--red); color: var(--red); }
 
     /* Login wall */
     #login-wall { display: flex; align-items: center; justify-content: center; min-height: calc(100dvh - 56px); }
     #login-box { background: var(--surface); border: 1px solid var(--surface2); border-radius: var(--radius); padding: 32px 28px; width: 320px; }
     #login-box h2 { margin-bottom: 18px; font-size: 1rem; }
-    #login-box input { width: 100%; background: var(--bg); border: 1px solid var(--surface2); border-radius: 6px; padding: 10px 12px; color: var(--text); font-size: 0.95rem; outline: none; margin-bottom: 14px; }
-    #login-box input:focus { border-color: var(--accent); }
-    #login-box button { width: 100%; background: var(--accent); color: #fff; border: none; padding: 11px; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .form-group input { width: 100%; background: var(--bg); border: 1px solid var(--surface2); border-radius: 6px; padding: 10px 12px; color: var(--text); font-size: 0.95rem; outline: none; }
+    .form-group input:focus { border-color: var(--accent); }
+    #btn-login { width: 100%; background: var(--accent); color: #fff; border: none; padding: 11px; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 4px; }
+    #btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+    #login-error { font-size: 0.82rem; color: var(--red); margin-top: 10px; display: none; }
 
     /* Cards */
     #admin-panel { display: none; padding: 24px; }
@@ -48,14 +54,25 @@
 
 <header>
   <h1>Finding Vicky — Admin</h1>
-  <span id="pending-count"></span>
+  <div id="header-right">
+    <span id="pending-count"></span>
+    <button id="btn-logout" style="display:none">Esci</button>
+  </div>
 </header>
 
 <div id="login-wall">
   <div id="login-box">
     <h2>Accesso admin</h2>
-    <input type="password" id="pw-input" placeholder="Password" autocomplete="current-password">
+    <div class="form-group">
+      <label for="email-input">Email</label>
+      <input type="email" id="email-input" placeholder="admin@example.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label for="pw-input">Password</label>
+      <input type="password" id="pw-input" placeholder="••••••••" autocomplete="current-password">
+    </div>
     <button id="btn-login">Accedi</button>
+    <p id="login-error"></p>
   </div>
 </div>
 
@@ -72,20 +89,49 @@
   import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+  // ── Check existing session ──
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) showAdminPanel(session.user.email);
+
   // ── Login ──
-  document.getElementById('btn-login').addEventListener('click', tryLogin);
+  const btnLogin  = document.getElementById('btn-login');
+  const loginErr  = document.getElementById('login-error');
+
+  btnLogin.addEventListener('click', tryLogin);
   document.getElementById('pw-input').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
 
-  function tryLogin() {
-    const pw = document.getElementById('pw-input').value;
-    if (pw === SUPABASE_ADMIN_PASSWORD) {
-      document.getElementById('login-wall').style.display = 'none';
-      document.getElementById('admin-panel').style.display = 'block';
-      loadPending();
+  async function tryLogin() {
+    const email = document.getElementById('email-input').value.trim();
+    const pw    = document.getElementById('pw-input').value;
+    btnLogin.disabled = true;
+    btnLogin.textContent = 'Accesso…';
+    loginErr.style.display = 'none';
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pw });
+
+    if (error) {
+      loginErr.textContent = 'Credenziali non valide.';
+      loginErr.style.display = 'block';
+      btnLogin.disabled = false;
+      btnLogin.textContent = 'Accedi';
     } else {
-      showToast('Password errata', 'error');
+      showAdminPanel(data.user.email);
     }
   }
+
+  function showAdminPanel(email) {
+    document.getElementById('login-wall').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'block';
+    document.getElementById('btn-logout').style.display = 'inline-block';
+    document.getElementById('header-right').insertAdjacentHTML('afterbegin',
+      `<span style="font-size:0.8rem">${esc(email)}</span>`);
+    loadPending();
+  }
+
+  document.getElementById('btn-logout').addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    location.reload();
+  });
 
   // ── Load pending ──
   async function loadPending() {
@@ -97,8 +143,11 @@
 
     const container = document.getElementById('cards-container');
     if (error) { container.innerHTML = `<p class="empty">Errore: ${error.message}</p>`; return; }
-    if (!data.length) { container.innerHTML = '<p class="empty">Nessuna segnalazione in attesa ✓</p>'; document.getElementById('pending-count').textContent = ''; return; }
-
+    if (!data.length) {
+      container.innerHTML = '<p class="empty">Nessuna segnalazione in attesa ✓</p>';
+      document.getElementById('pending-count').textContent = '';
+      return;
+    }
     document.getElementById('pending-count').textContent = `${data.length} in attesa`;
     container.innerHTML = '';
     data.forEach(pin => container.appendChild(buildCard(pin)));
@@ -113,9 +162,7 @@
       ? `<img src="${pin.photo_url}" alt="foto" loading="lazy">`
       : `<div style="height:80px;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.8rem;">Nessuna foto</div>`;
 
-    const date = pin.taken_at
-      ? new Date(pin.taken_at).toLocaleString('it-IT')
-      : '—';
+    const date = pin.taken_at ? new Date(pin.taken_at).toLocaleString('it-IT') : '—';
 
     card.innerHTML = `
       ${photoHtml}
@@ -134,26 +181,23 @@
         </div>
       </div>`;
 
-    card.querySelector('.btn-approve').addEventListener('click', () => moderatePin(pin.id, true));
-    card.querySelector('.btn-reject').addEventListener('click',  () => moderatePin(pin.id, false));
+    card.querySelector('.btn-approve').addEventListener('click', () => moderatePin(pin.id, true,  pin.photo_url));
+    card.querySelector('.btn-reject').addEventListener('click',  () => moderatePin(pin.id, false, pin.photo_url));
     return card;
   }
 
-  async function moderatePin(id, approve) {
+  async function moderatePin(id, approve, photoUrl) {
     if (approve) {
       const { error } = await supabase.from('pins').update({ approved: true }).eq('id', id);
       if (error) { showToast('Errore: ' + error.message, 'error'); return; }
       showToast('Pin approvato!', 'success');
     } else {
-      // Ask confirmation before deleting
       if (!confirm('Eliminare definitivamente questa segnalazione?')) return;
-      const { data: pin } = await supabase.from('pins').select('photo_url').eq('id', id).single();
       const { error } = await supabase.from('pins').delete().eq('id', id);
       if (error) { showToast('Errore: ' + error.message, 'error'); return; }
-      // Also delete photo from storage
-      if (pin?.photo_url) {
-        const path = pin.photo_url.split('/photos/')[1];
-        if (path) await supabase.storage.from('photos').remove([`pins/${path}`]);
+      if (photoUrl) {
+        const path = photoUrl.split('/object/public/photos/')[1];
+        if (path) await supabase.storage.from('photos').remove([path]);
       }
       showToast('Segnalazione eliminata', '');
     }
