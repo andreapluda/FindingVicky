@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Finding Vicky</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --accent: #e63946; --bg: #1a1a2e; --surface: #16213e;
+      --surface2: #0f3460; --text: #eaeaea; --text-muted: #9ca3af;
+      --green: #4ade80; --red: #ef4444; --radius: 10px;
+    }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100dvh; }
+    header { background: var(--surface); padding: 14px 24px; border-bottom: 1px solid var(--surface2); display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 1.1rem; color: var(--accent); }
+    #pending-count { font-size: 0.85rem; color: var(--text-muted); }
+
+    /* Login wall */
+    #login-wall { display: flex; align-items: center; justify-content: center; min-height: calc(100dvh - 56px); }
+    #login-box { background: var(--surface); border: 1px solid var(--surface2); border-radius: var(--radius); padding: 32px 28px; width: 320px; }
+    #login-box h2 { margin-bottom: 18px; font-size: 1rem; }
+    #login-box input { width: 100%; background: var(--bg); border: 1px solid var(--surface2); border-radius: 6px; padding: 10px 12px; color: var(--text); font-size: 0.95rem; outline: none; margin-bottom: 14px; }
+    #login-box input:focus { border-color: var(--accent); }
+    #login-box button { width: 100%; background: var(--accent); color: #fff; border: none; padding: 11px; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+
+    /* Cards */
+    #admin-panel { display: none; padding: 24px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .card { background: var(--surface); border: 1px solid var(--surface2); border-radius: var(--radius); overflow: hidden; }
+    .card img { width: 100%; height: 160px; object-fit: cover; display: block; }
+    .card-body { padding: 14px; }
+    .card-meta { font-size: 0.82rem; color: var(--text-muted); line-height: 1.7; margin-bottom: 12px; }
+    .card-meta strong { color: var(--text); }
+    .card-actions { display: flex; gap: 8px; }
+    .btn-approve { flex: 1; background: rgba(74,222,128,0.15); border: 1px solid var(--green); color: var(--green); padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.88rem; font-weight: 600; transition: background 0.2s; }
+    .btn-approve:hover { background: rgba(74,222,128,0.3); }
+    .btn-reject { flex: 1; background: rgba(239,68,68,0.12); border: 1px solid var(--red); color: var(--red); padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.88rem; font-weight: 600; transition: background 0.2s; }
+    .btn-reject:hover { background: rgba(239,68,68,0.25); }
+    .empty { color: var(--text-muted); text-align: center; padding: 60px 20px; }
+    #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--surface); border: 1px solid var(--surface2); color: var(--text); padding: 10px 20px; border-radius: 30px; font-size: 0.88rem; z-index: 999; transition: transform 0.3s; }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.success { border-color: var(--green); color: var(--green); }
+    #toast.error { border-color: var(--red); color: var(--red); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Finding Vicky — Admin</h1>
+  <span id="pending-count"></span>
+</header>
+
+<div id="login-wall">
+  <div id="login-box">
+    <h2>Accesso admin</h2>
+    <input type="password" id="pw-input" placeholder="Password" autocomplete="current-password">
+    <button id="btn-login">Accedi</button>
+  </div>
+</div>
+
+<div id="admin-panel">
+  <div class="cards" id="cards-container">
+    <p class="empty">Caricamento…</p>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="supabase-config.js"></script>
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ── Login ──
+  document.getElementById('btn-login').addEventListener('click', tryLogin);
+  document.getElementById('pw-input').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+
+  function tryLogin() {
+    const pw = document.getElementById('pw-input').value;
+    if (pw === SUPABASE_ADMIN_PASSWORD) {
+      document.getElementById('login-wall').style.display = 'none';
+      document.getElementById('admin-panel').style.display = 'block';
+      loadPending();
+    } else {
+      showToast('Password errata', 'error');
+    }
+  }
+
+  // ── Load pending ──
+  async function loadPending() {
+    const { data, error } = await supabase
+      .from('pins')
+      .select('*')
+      .eq('approved', false)
+      .order('created_at', { ascending: true });
+
+    const container = document.getElementById('cards-container');
+    if (error) { container.innerHTML = `<p class="empty">Errore: ${error.message}</p>`; return; }
+    if (!data.length) { container.innerHTML = '<p class="empty">Nessuna segnalazione in attesa ✓</p>'; document.getElementById('pending-count').textContent = ''; return; }
+
+    document.getElementById('pending-count').textContent = `${data.length} in attesa`;
+    container.innerHTML = '';
+    data.forEach(pin => container.appendChild(buildCard(pin)));
+  }
+
+  function buildCard(pin) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = `card-${pin.id}`;
+
+    const photoHtml = pin.photo_url
+      ? `<img src="${pin.photo_url}" alt="foto" loading="lazy">`
+      : `<div style="height:80px;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.8rem;">Nessuna foto</div>`;
+
+    const date = pin.taken_at
+      ? new Date(pin.taken_at).toLocaleString('it-IT')
+      : '—';
+
+    card.innerHTML = `
+      ${photoHtml}
+      <div class="card-body">
+        <div class="card-meta">
+          <strong>${esc(pin.username || 'Anonimo')}</strong><br>
+          📍 ${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)}<br>
+          ${pin.location_name ? `📌 ${esc(pin.location_name)}<br>` : ''}
+          🕐 ${date}<br>
+          ${pin.note ? `💬 ${esc(pin.note)}<br>` : ''}
+          <span style="font-size:0.75rem;color:var(--text-muted)">Inviato: ${new Date(pin.created_at).toLocaleString('it-IT')}</span>
+        </div>
+        <div class="card-actions">
+          <button class="btn-approve">✓ Approva</button>
+          <button class="btn-reject">✕ Rifiuta</button>
+        </div>
+      </div>`;
+
+    card.querySelector('.btn-approve').addEventListener('click', () => moderatePin(pin.id, true));
+    card.querySelector('.btn-reject').addEventListener('click',  () => moderatePin(pin.id, false));
+    return card;
+  }
+
+  async function moderatePin(id, approve) {
+    if (approve) {
+      const { error } = await supabase.from('pins').update({ approved: true }).eq('id', id);
+      if (error) { showToast('Errore: ' + error.message, 'error'); return; }
+      showToast('Pin approvato!', 'success');
+    } else {
+      // Ask confirmation before deleting
+      if (!confirm('Eliminare definitivamente questa segnalazione?')) return;
+      const { data: pin } = await supabase.from('pins').select('photo_url').eq('id', id).single();
+      const { error } = await supabase.from('pins').delete().eq('id', id);
+      if (error) { showToast('Errore: ' + error.message, 'error'); return; }
+      // Also delete photo from storage
+      if (pin?.photo_url) {
+        const path = pin.photo_url.split('/photos/')[1];
+        if (path) await supabase.storage.from('photos').remove([`pins/${path}`]);
+      }
+      showToast('Segnalazione eliminata', '');
+    }
+    document.getElementById(`card-${id}`)?.remove();
+    const remaining = document.querySelectorAll('.card').length;
+    if (!remaining) {
+      document.getElementById('cards-container').innerHTML = '<p class="empty">Nessuna segnalazione in attesa ✓</p>';
+      document.getElementById('pending-count').textContent = '';
+    } else {
+      document.getElementById('pending-count').textContent = `${remaining} in attesa`;
+    }
+  }
+
+  function showToast(msg, type = '') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'show ' + type;
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.className = '', 3200);
+  }
+
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>
