@@ -282,6 +282,97 @@ header h1 span { color: var(--text); }
   margin-bottom: 6px;
 }
 
+/* ── Position pick widget ── */
+.pos-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pos-buttons button {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+
+.pos-buttons button:hover { background: #1a3a5c; border-color: var(--accent); }
+
+#coords-selected {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(74,222,128,0.07);
+  border: 1px solid rgba(74,222,128,0.25);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  color: #4ade80;
+}
+
+#coords-text { flex: 1; font-family: monospace; }
+
+#btn-reposition {
+  background: none;
+  border: 1px solid rgba(74,222,128,0.3);
+  border-radius: 5px;
+  color: #4ade80;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#btn-reposition:hover { background: rgba(74,222,128,0.12); }
+
+/* ── Pick mode (overlay hides modal, shows crosshair) ── */
+.modal-overlay.pick-mode {
+  background: rgba(0,0,0,0.15);
+  cursor: crosshair;
+}
+
+.modal-overlay.pick-mode .modal { display: none; }
+
+/* ── Pick banner (bottom instruction bar) ── */
+#pick-banner {
+  display: none;
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--surface2);
+  border-radius: 30px;
+  padding: 11px 20px;
+  align-items: center;
+  gap: 16px;
+  z-index: 3000;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.55);
+  font-size: 0.88rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+#pick-banner.visible { display: flex; }
+
+#btn-cancel-pick {
+  background: none;
+  border: 1px solid var(--surface2);
+  border-radius: 20px;
+  color: var(--text-muted);
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+#btn-cancel-pick:hover { border-color: var(--accent); color: var(--accent); }
+
 /* ── Submit button ── */
 #btn-submit {
   width: 100%;
@@ -319,7 +410,8 @@ header h1 span { color: var(--text); }
 
 #toast.show { transform: translateX(-50%) translateY(0); }
 #toast.success { border-color: #4ade80; color: #4ade80; }
-#toast.error { border-color: var(--accent); color: var(--accent); }
+#toast.error   { border-color: var(--accent); color: var(--accent); }
+#toast.warning { border-color: #f4a261; color: #f4a261; }
 
 /* ── Leaflet popup override ── */
 .leaflet-popup-content-wrapper {

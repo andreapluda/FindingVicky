@@ -38,23 +38,16 @@
     <form id="pin-form">
       <div class="exif-badge" id="exif-badge" style="display:none"></div>
 
-      <div class="coords-row">
-        <div class="form-group">
-          <label for="lat">Latitudine</label>
-          <input type="number" id="lat" step="0.000001" placeholder="es. 45.464664" required>
+      <div class="form-group">
+        <label>Posizione *</label>
+        <div class="pos-buttons" id="pos-buttons">
+          <button type="button" id="btn-pick-map">🗺 Tocca la mappa</button>
+          <button type="button" id="btn-geolocate">📍 Usa la mia posizione</button>
         </div>
-        <div class="form-group">
-          <label for="lng">Longitudine</label>
-          <input type="number" id="lng" step="0.000001" placeholder="es. 9.188540" required>
+        <div id="coords-selected" style="display:none">
+          <span id="coords-text"></span>
+          <button type="button" id="btn-reposition">✎ Sposta</button>
         </div>
-      </div>
-
-      <div class="form-group" style="margin-top:-8px;margin-bottom:16px">
-        <button type="button" id="btn-geolocate" style="
-          background:none;border:1px solid var(--surface2);
-          color:var(--text-muted);padding:6px 14px;border-radius:6px;
-          cursor:pointer;font-size:0.82rem;
-        ">📍 Usa la mia posizione attuale</button>
       </div>
 
       <div class="form-group">
@@ -105,6 +98,11 @@
       <button type="submit" id="btn-submit">Invia segnalazione</button>
     </form>
   </div>
+</div>
+
+<div id="pick-banner">
+  <span>Tocca la mappa per posizionare il pin</span>
+  <button id="btn-cancel-pick">✕ Annulla</button>
 </div>
 
 <div id="toast"></div>

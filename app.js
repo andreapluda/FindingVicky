@@ -1,5 +1,5 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import exifr from 'https://cdn.jsdelivr.net/npm/exifr/dist/mini.esm.mjs';
+import exifr from 'https://cdn.jsdelivr.net/npm/exifr/dist/full.esm.mjs';
 
 // ── Init Supabase ──────────────────────────────────────────────────────────────
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -129,7 +129,7 @@ async function handleFile(file) {
     const exif = await exifr.parse(file, { gps: true, tiff: true, exif: true });
 
     let hasGps = false;
-    if (exif?.latitude && exif?.longitude) {
+    if (exif?.latitude != null && exif?.longitude != null) {
       setCoords(exif.latitude, exif.longitude, true);
       hasGps = true;
     }
@@ -139,26 +139,42 @@ async function handleFile(file) {
     }
 
     if (!exif || (!hasGps && !exif.DateTimeOriginal)) {
-      showToast('Nessun dato EXIF trovato — inserisci posizione e data manualmente', '');
+      showToast('Nessun dato EXIF — imposta posizione e data manualmente', 'warning');
     } else if (!hasGps) {
-      showToast('Data estratta, ma nessun GPS nella foto — imposta la posizione', '');
+      showToast('Data estratta, ma nessun GPS — scegli il punto sulla mappa', 'warning');
     }
   } catch (_) {
-    showToast('Impossibile leggere i metadati della foto', '');
+    showToast('Impossibile leggere i metadati della foto', 'warning');
   }
 }
 
+let selectedCoords = null;
+let pickMarker = null;
+
 function setCoords(lat, lng, fromExif) {
-  document.getElementById('lat').value = lat.toFixed(6);
-  document.getElementById('lng').value = lng.toFixed(6);
+  selectedCoords = { lat, lng };
+
+  document.getElementById('coords-selected').style.display = 'flex';
+  document.getElementById('pos-buttons').style.display = 'none';
+  document.getElementById('coords-text').textContent =
+    `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
   if (fromExif) {
     exifBadge.textContent = '✓ Posizione estratta dalla foto';
     exifBadge.className = 'exif-badge';
-  } else {
-    exifBadge.textContent = 'Posizione inserita manualmente';
-    exifBadge.className = 'exif-badge manual';
+    exifBadge.style.display = 'inline-flex';
   }
-  exifBadge.style.display = 'inline-flex';
+
+  // Place/move temp marker on the map
+  if (pickMarker) pickMarker.remove();
+  pickMarker = L.marker([lat, lng], { icon: pinIconFixed, opacity: 0.6 }).addTo(map);
+}
+
+function clearCoords() {
+  selectedCoords = null;
+  document.getElementById('coords-selected').style.display = 'none';
+  document.getElementById('pos-buttons').style.display = 'flex';
+  if (pickMarker) { pickMarker.remove(); pickMarker = null; }
 }
 
 function toDatetimeLocal(d) {
@@ -170,6 +186,39 @@ function toDatetimeLocal(d) {
 // ── Mobile toggle ─────────────────────────────────────────────────────────────
 document.getElementById('is-mobile').addEventListener('change', e => {
   document.getElementById('mobile-fields').style.display = e.target.checked ? 'block' : 'none';
+});
+
+// ── Map pick mode ──────────────────────────────────────────────────────────────
+const pickBanner = document.getElementById('pick-banner');
+
+function activatePickMode() {
+  overlay.classList.add('pick-mode');
+  pickBanner.classList.add('visible');
+}
+
+function deactivatePickMode() {
+  overlay.classList.remove('pick-mode');
+  pickBanner.classList.remove('visible');
+}
+
+document.getElementById('btn-pick-map').addEventListener('click', activatePickMode);
+document.getElementById('btn-reposition').addEventListener('click', () => {
+  clearCoords();
+  activatePickMode();
+});
+document.getElementById('btn-cancel-pick').addEventListener('click', deactivatePickMode);
+
+// Click on the semi-transparent overlay → pick coords from map
+overlay.addEventListener('click', e => {
+  if (overlay.classList.contains('pick-mode')) {
+    const rect = map.getContainer().getBoundingClientRect();
+    const point = L.point(e.clientX - rect.left, e.clientY - rect.top);
+    const latlng = map.containerPointToLatLng(point);
+    setCoords(latlng.lat, latlng.lng, false);
+    deactivatePickMode();
+    return;
+  }
+  if (e.target === overlay) closeModal();
 });
 
 // ── Get location from browser ──────────────────────────────────────────────────
@@ -187,8 +236,6 @@ document.getElementById('pin-form').addEventListener('submit', async e => {
   btnSub.disabled = true;
   btnSub.textContent = 'Invio in corso…';
 
-  const lat = parseFloat(document.getElementById('lat').value);
-  const lng = parseFloat(document.getElementById('lng').value);
   const username = document.getElementById('username').value.trim();
   const takenAt  = document.getElementById('taken-at').value;
   const locationName = document.getElementById('location-name').value.trim();
@@ -197,7 +244,9 @@ document.getElementById('pin-form').addEventListener('submit', async e => {
   const mobile_type = is_mobile ? document.getElementById('mobile-type').value : null;
 
   if (!username) { showToast('Inserisci un nome utente', 'error'); resetBtn(); return; }
-  if (isNaN(lat) || isNaN(lng)) { showToast('Imposta la posizione geografica', 'error'); resetBtn(); return; }
+  if (!selectedCoords) { showToast('Imposta la posizione geografica', 'error'); resetBtn(); return; }
+
+  const { lat, lng } = selectedCoords;
 
   let photo_url = null;
 
@@ -244,6 +293,8 @@ function resetForm() {
   photoDrop.style.display = '';
   exifBadge.style.display = 'none';
   document.getElementById('mobile-fields').style.display = 'none';
+  clearCoords();
+  deactivatePickMode();
   resetBtn();
 }
 
