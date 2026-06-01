@@ -35,6 +35,9 @@
     .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
     .card { background: var(--surface); border: 1px solid var(--surface2); border-radius: var(--radius); overflow: hidden; }
     .card img { width: 100%; height: 160px; object-fit: cover; display: block; }
+    .card.is-mobile { border-color: rgba(244,162,97,0.4); }
+    .card.is-mobile img { border-top: 3px solid #f4a261; }
+    .mobile-badge { display:inline-flex;align-items:center;gap:5px;font-size:0.75rem;font-weight:600;color:#f4a261;background:rgba(244,162,97,0.12);border:1px solid rgba(244,162,97,0.3);border-radius:20px;padding:2px 9px;margin-bottom:6px; }
     .card-body { padding: 14px; }
     .card-meta { font-size: 0.82rem; color: var(--text-muted); line-height: 1.7; margin-bottom: 12px; }
     .card-meta strong { color: var(--text); }
@@ -163,11 +166,17 @@
       : `<div style="height:80px;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.8rem;">Nessuna foto</div>`;
 
     const date = pin.taken_at ? new Date(pin.taken_at).toLocaleString('it-IT') : '—';
+    if (pin.is_mobile) card.classList.add('is-mobile');
+
+    const mobileBadge = pin.is_mobile
+      ? `<div class="mobile-badge">In movimento · ${esc(MOBILE_LABELS[pin.mobile_type] ?? pin.mobile_type ?? 'Veicolo')}</div>`
+      : '';
 
     card.innerHTML = `
       ${photoHtml}
       <div class="card-body">
         <div class="card-meta">
+          ${mobileBadge}
           <strong>${esc(pin.username || 'Anonimo')}</strong><br>
           📍 ${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)}<br>
           ${pin.location_name ? `📌 ${esc(pin.location_name)}<br>` : ''}
@@ -218,6 +227,12 @@
     clearTimeout(t._timer);
     t._timer = setTimeout(() => t.className = '', 3200);
   }
+
+  const MOBILE_LABELS = {
+    auto: '🚗 Auto / Moto / Furgone', bici: '🚲 Bicicletta / Monopattino',
+    camion: '🚛 Camion / TIR', bus: '🚌 Bus / Pullman', treno: '🚆 Treno / Metro',
+    nave: '⛵ Nave / Barca', aereo: '✈️ Aereo', altro: '📦 Altro',
+  };
 
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 </script>

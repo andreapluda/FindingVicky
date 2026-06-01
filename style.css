@@ -198,6 +198,90 @@ header h1 span { color: var(--text); }
   background: rgba(156,163,175,0.1);
 }
 
+/* ── Mobile toggle ── */
+.mobile-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  margin-bottom: 4px;
+  user-select: none;
+}
+
+.mobile-toggle input[type="checkbox"] { display: none; }
+
+.mobile-toggle-track {
+  width: 40px;
+  height: 22px;
+  background: var(--surface2);
+  border-radius: 11px;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.mobile-toggle input:checked + .mobile-toggle-track {
+  background: #f4a261;
+}
+
+.mobile-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+
+.mobile-toggle input:checked ~ .mobile-toggle-track .mobile-toggle-thumb {
+  transform: translateX(18px);
+}
+
+.mobile-toggle-text {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  transition: color 0.2s;
+}
+
+.mobile-toggle:has(input:checked) .mobile-toggle-text {
+  color: #f4a261;
+  font-weight: 600;
+}
+
+/* Select inside mobile fields */
+#mobile-type {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--surface2);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 0.95rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+#mobile-type:focus { border-color: #f4a261; }
+
+/* ── Mobile badge in popup ── */
+.popup-mobile-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #f4a261;
+  background: rgba(244,162,97,0.12);
+  border: 1px solid rgba(244,162,97,0.3);
+  border-radius: 20px;
+  padding: 2px 9px;
+  margin-bottom: 6px;
+}
+
 /* ── Submit button ── */
 #btn-submit {
   width: 100%;

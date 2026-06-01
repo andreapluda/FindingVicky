@@ -3,87 +3,201 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Finding Vicky — Mappa degli adesivi</title>
+  <title>Finding Vicky</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    :root {
+      --accent: #e63946;
+      --accent-dark: #c1121f;
+      --bg: #1a1a2e;
+      --surface: #16213e;
+      --surface2: #0f3460;
+      --text: #eaeaea;
+      --text-muted: #9ca3af;
+    }
 
-  <link rel="stylesheet" href="style.css">
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Sfondo sfumato animato */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 20% 80%, rgba(230,57,70,0.12) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 80% 20%, rgba(15,52,96,0.6) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .landing {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      padding: 24px 20px 40px;
+      text-align: center;
+    }
+
+    /* Sticker in cima */
+    .sticker-wrap {
+      margin-bottom: 32px;
+      animation: float 4s ease-in-out infinite;
+      filter: drop-shadow(0 8px 24px rgba(230,57,70,0.35));
+    }
+
+    .sticker-wrap img {
+      width: clamp(100px, 22vw, 180px);
+      height: auto;
+      display: block;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) rotate(-2deg); }
+      50%       { transform: translateY(-12px) rotate(2deg); }
+    }
+
+    /* Logo centrale */
+    .logo-wrap img {
+      width: clamp(180px, 40vw, 320px);
+      height: auto;
+      display: block;
+    }
+
+    /* Tagline */
+    .tagline {
+      margin-top: 16px;
+      font-size: clamp(0.85rem, 2vw, 1rem);
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
+    }
+
+    /* Pulsanti */
+    .cta-row {
+      display: flex;
+      gap: 14px;
+      margin-top: 40px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 50px;
+      font-size: clamp(0.9rem, 2.5vw, 1rem);
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(230,57,70,0.4);
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-dark);
+      box-shadow: 0 6px 28px rgba(230,57,70,0.55);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--surface2);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    }
+
+    .btn-secondary:hover {
+      background: var(--surface2);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+    }
+
+    /* Contatore pin in basso */
+    .counter {
+      position: fixed;
+      bottom: 20px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
+      z-index: 1;
+    }
+
+    .counter span {
+      color: var(--accent);
+      font-weight: 700;
+    }
+  </style>
 </head>
 <body>
 
-<header>
-  <h1>Finding <span>Vicky</span></h1>
-  <button id="btn-add-pin">+ Aggiungi adesivo</button>
-</header>
+<div class="landing">
 
-<div id="map"></div>
-
-<!-- ── Add-pin modal ── -->
-<div class="modal-overlay" id="modal-overlay">
-  <div class="modal">
-    <button class="modal-close" id="modal-close" aria-label="Chiudi">×</button>
-    <h2>Segnala un adesivo</h2>
-
-    <div id="photo-drop">
-      <input type="file" id="photo-input" accept="image/*">
-      📷 Trascina qui la foto oppure clicca per selezionarla<br>
-      <small style="color:var(--text-muted)">La posizione verrà estratta automaticamente se disponibile</small>
-    </div>
-    <img id="photo-preview" alt="Anteprima foto">
-
-    <form id="pin-form">
-      <div class="exif-badge" id="exif-badge" style="display:none"></div>
-
-      <div class="coords-row">
-        <div class="form-group">
-          <label for="lat">Latitudine</label>
-          <input type="number" id="lat" step="0.000001" placeholder="es. 45.464664" required>
-        </div>
-        <div class="form-group">
-          <label for="lng">Longitudine</label>
-          <input type="number" id="lng" step="0.000001" placeholder="es. 9.188540" required>
-        </div>
-      </div>
-
-      <div class="form-group" style="margin-top:-8px;margin-bottom:16px">
-        <button type="button" id="btn-geolocate" style="
-          background:none;border:1px solid var(--surface2);
-          color:var(--text-muted);padding:6px 14px;border-radius:6px;
-          cursor:pointer;font-size:0.82rem;
-        ">📍 Usa la mia posizione attuale</button>
-      </div>
-
-      <div class="form-group">
-        <label for="location-name">Luogo (opzionale)</label>
-        <input type="text" id="location-name" placeholder="es. Via Torino, Milano">
-      </div>
-
-      <div class="form-group">
-        <label for="taken-at">Data e ora</label>
-        <input type="datetime-local" id="taken-at">
-      </div>
-
-      <div class="form-group">
-        <label for="username">Il tuo nome / nickname *</label>
-        <input type="text" id="username" placeholder="es. marco_stickers" maxlength="50" required>
-      </div>
-
-      <div class="form-group">
-        <label for="note">Note (opzionale)</label>
-        <textarea id="note" placeholder="Dove si trova esattamente l'adesivo?" maxlength="300"></textarea>
-      </div>
-
-      <button type="submit" id="btn-submit">Invia segnalazione</button>
-    </form>
+  <div class="sticker-wrap">
+    <img src="Cicky.png" alt="Sticker Vicky">
   </div>
+
+  <div class="logo-wrap">
+    <img src="Logo.png" alt="Finding Vicky">
+  </div>
+
+  <p class="tagline">Aiutaci a trovare tutti gli adesivi di Vicky nel mondo</p>
+
+  <div class="cta-row">
+    <a href="map.html" class="btn btn-primary">
+      🗺 Vedi la mappa
+    </a>
+    <a href="map.html?add=1" class="btn btn-secondary">
+      📍 Aggiungi un pin
+    </a>
+  </div>
+
 </div>
 
-<div id="toast"></div>
+<p class="counter" id="counter"></p>
 
-<!-- Supabase config (fill in your values) -->
 <script src="supabase-config.js"></script>
-<script type="module" src="app.js"></script>
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const { count } = await supabase
+    .from('pins')
+    .select('*', { count: 'exact', head: true })
+    .eq('approved', true);
+
+  if (count) {
+    document.getElementById('counter').innerHTML =
+      `<span>${count}</span> adesiv${count === 1 ? 'o trovato' : 'i trovati'} finora`;
+  }
+</script>
 </body>
 </html>

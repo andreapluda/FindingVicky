@@ -12,20 +12,36 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
 }).addTo(map);
 
-const pinIcon = L.divIcon({
-  className: '',
-  html: `<div style="
-    width:32px;height:32px;
-    background:var(--accent,#e63946);
-    border:3px solid #fff;
-    border-radius:50% 50% 50% 0;
-    transform:rotate(-45deg);
-    box-shadow:0 2px 8px rgba(0,0,0,0.4);
-  "></div>`,
-  iconSize: [32, 32],
-  iconAnchor: [16, 32],
-  popupAnchor: [0, -34],
-});
+function makePinIcon(color) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:32px;height:32px;
+      background:${color};
+      border:3px solid #fff;
+      border-radius:50% 50% 50% 0;
+      transform:rotate(-45deg);
+      box-shadow:0 2px 8px rgba(0,0,0,0.4);
+    "></div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -34],
+  });
+}
+
+const pinIconFixed  = makePinIcon('#e63946');
+const pinIconMobile = makePinIcon('#f4a261');
+
+const MOBILE_LABELS = {
+  auto:   '🚗 Auto / Moto / Furgone',
+  bici:   '🚲 Bicicletta / Monopattino',
+  camion: '🚛 Camion / TIR',
+  bus:    '🚌 Bus / Pullman',
+  treno:  '🚆 Treno / Metro',
+  nave:   '⛵ Nave / Barca',
+  aereo:  '✈️ Aereo',
+  altro:  '📦 Altro',
+};
 
 // ── Load approved pins ─────────────────────────────────────────────────────────
 async function loadPins() {
@@ -41,19 +57,25 @@ async function loadPins() {
 }
 
 function addPinToMap(pin) {
-  const marker = L.marker([pin.lat, pin.lng], { icon: pinIcon }).addTo(map);
+  const icon = pin.is_mobile ? pinIconMobile : pinIconFixed;
+  const marker = L.marker([pin.lat, pin.lng], { icon }).addTo(map);
+
   const photoHtml = pin.photo_url
     ? `<img class="popup-img" src="${pin.photo_url}" alt="Sticker photo" loading="lazy">`
     : '';
   const date = pin.taken_at
     ? new Date(pin.taken_at).toLocaleDateString('it-IT', { day:'2-digit', month:'short', year:'numeric' })
     : '—';
+  const mobileBadge = pin.is_mobile
+    ? `<div class="popup-mobile-badge">In movimento · ${escHtml(MOBILE_LABELS[pin.mobile_type] ?? pin.mobile_type ?? 'Veicolo')}</div>`
+    : '';
 
   marker.bindPopup(`
     ${photoHtml}
     <div class="popup-meta">
+      ${mobileBadge}
       <strong>${escHtml(pin.username || 'Anonimo')}</strong><br>
-      ${escHtml(pin.location_name || '')}<br>
+      ${pin.location_name ? escHtml(pin.location_name) + '<br>' : ''}
       ${date}
       ${pin.note ? `<br><em>${escHtml(pin.note)}</em>` : ''}
     </div>
@@ -104,16 +126,26 @@ async function handleFile(file) {
 
   // Extract EXIF
   try {
-    const exif = await exifr.parse(file, { gps: true, tiff: true });
+    const exif = await exifr.parse(file, { gps: true, tiff: true, exif: true });
+
+    let hasGps = false;
     if (exif?.latitude && exif?.longitude) {
       setCoords(exif.latitude, exif.longitude, true);
+      hasGps = true;
     }
+
     if (exif?.DateTimeOriginal) {
-      const d = exif.DateTimeOriginal;
-      // Format to datetime-local: YYYY-MM-DDTHH:mm
-      document.getElementById('taken-at').value = toDatetimeLocal(d);
+      document.getElementById('taken-at').value = toDatetimeLocal(exif.DateTimeOriginal);
     }
-  } catch (_) { /* no EXIF — user fills manually */ }
+
+    if (!exif || (!hasGps && !exif.DateTimeOriginal)) {
+      showToast('Nessun dato EXIF trovato — inserisci posizione e data manualmente', '');
+    } else if (!hasGps) {
+      showToast('Data estratta, ma nessun GPS nella foto — imposta la posizione', '');
+    }
+  } catch (_) {
+    showToast('Impossibile leggere i metadati della foto', '');
+  }
 }
 
 function setCoords(lat, lng, fromExif) {
@@ -135,6 +167,11 @@ function toDatetimeLocal(d) {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// ── Mobile toggle ─────────────────────────────────────────────────────────────
+document.getElementById('is-mobile').addEventListener('change', e => {
+  document.getElementById('mobile-fields').style.display = e.target.checked ? 'block' : 'none';
+});
+
 // ── Get location from browser ──────────────────────────────────────────────────
 document.getElementById('btn-geolocate').addEventListener('click', () => {
   if (!navigator.geolocation) return showToast('Geolocalizzazione non supportata', 'error');
@@ -155,7 +192,9 @@ document.getElementById('pin-form').addEventListener('submit', async e => {
   const username = document.getElementById('username').value.trim();
   const takenAt  = document.getElementById('taken-at').value;
   const locationName = document.getElementById('location-name').value.trim();
-  const note     = document.getElementById('note').value.trim();
+  const note       = document.getElementById('note').value.trim();
+  const is_mobile  = document.getElementById('is-mobile').checked;
+  const mobile_type = is_mobile ? document.getElementById('mobile-type').value : null;
 
   if (!username) { showToast('Inserisci un nome utente', 'error'); resetBtn(); return; }
   if (isNaN(lat) || isNaN(lng)) { showToast('Imposta la posizione geografica', 'error'); resetBtn(); return; }
@@ -180,6 +219,7 @@ document.getElementById('pin-form').addEventListener('submit', async e => {
     location_name: locationName || null,
     note: note || null,
     taken_at: takenAt ? new Date(takenAt).toISOString() : null,
+    is_mobile, mobile_type,
     approved: false,
   });
 
@@ -203,6 +243,7 @@ function resetForm() {
   photoPreview.style.display = 'none';
   photoDrop.style.display = '';
   exifBadge.style.display = 'none';
+  document.getElementById('mobile-fields').style.display = 'none';
   resetBtn();
 }
 
@@ -222,3 +263,7 @@ function escHtml(s) {
 
 // ── Start ──────────────────────────────────────────────────────────────────────
 loadPins();
+
+if (new URLSearchParams(location.search).get('add') === '1') {
+  overlay.classList.add('open');
+}

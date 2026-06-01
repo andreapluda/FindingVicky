@@ -68,3 +68,9 @@ drop policy if exists "Admin can delete photos" on storage.objects;
 create policy "Admin can delete photos"
   on storage.objects for delete
   using (bucket_id = 'photos' and auth.role() = 'authenticated');
+
+-- ── Migration: mobile pins ─────────────────────────────────────────────────────
+-- Run this block if you already created the table with the previous script
+alter table public.pins
+  add column if not exists is_mobile   boolean default false not null,
+  add column if not exists mobile_type text;
